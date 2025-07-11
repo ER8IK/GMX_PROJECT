@@ -18,26 +18,20 @@ capital.
 ## Contract Addresses (Arbitrum Mainnet)
 | Contract | Address |
 |----------|---------|
-| Aave Pool | `0x794a61358D6845
-594F94dc1DB02A252b5b4814aD` 
+| Aave Pool | `0x794a61358D6845594F94dc1DB02A252b5b4814aD` 
 |
-| GMX Router | `0xaBBc5F99639c9
-B6bCb58544ddf04EFA6802F4064` 
+| GMX Router | `0xaBBc5F99639c9B6bCb58544ddf04EFA6802F4064` 
 |
-| Uniswap Router | `0x1b02dA8Cb0d0
-97eB8D57A175b88c7D8b47997506` 
+| Uniswap Router | `0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506` 
 |
 
 ## Usage
 ### 1. Deploy Contract
 ```javascript
 // Arbitrum mainnet addresses
-const aavePool = "0x794a61358D6845594F94d
-c1DB02A252b5b4814aD";
-const gmxRouter = "0xaBBc5F99639c9B6bCb58
-544ddf04EFA6802F4064";
-const uniswapRouter = "0x1b02dA8Cb0d097eB
-8D57A175b88c7D8b47997506";
+const aavePool = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
+const gmxRouter = "0xaBBc5F99639c9B6bCb58544ddf04EFA6802F4064";
+const uniswapRouter = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
 
 // Deploy
 const GMXArbitrageur = await 
@@ -49,8 +43,7 @@ const contract = await GMXArbitrageur.deploy(aavePool, gmxRouter, uniswapRouter)
 ```javascript
 // Example: 1000 USDC arbitrage
 await contract.startArbitrage(
-    "0xFF970A61A04b1cA14834
-    A43f5dE4533eBDDB5CC8", 
+    "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", 
     // USDC  1000000000, 
     // 1000 USDC (6 decimals) 
     "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", 
