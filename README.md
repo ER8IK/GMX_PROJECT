@@ -1,90 +1,72 @@
-# GMX Arbitrage Smart Contract
+# GMX V2 Arbitrage Smart Contract  
 **Author:** Erik Lochashvili  
 **Network:** Arbitrum One  
-## Overview
-This smart contract enables flash loan-based 
-arbitrage between GMX and other DEXs (like 
-Uniswap). The contract executes triangular 
-arbitrage opportunities without requiring initial 
-capital.
 
-## Key Features
-- Flash loan integration with Aave V3
-- GMX and Uniswap/Sushiswap router interfaces
-- Customizable slippage tolerance
-- Profit calculation and automatic loan repayment
-- Owner-restricted access control
+## Overview  
+Flash loan-powered arbitrage between GMX V2 and Uniswap. Capital-efficient MEV execution using Aave V3 loans.  
 
-## Contract Addresses (Arbitrum Mainnet)
-| Contract | Address |
-|----------|---------|
-| Aave Pool | `0x794a61358D6845594F94dc1DB02A252b5b4814aD` 
-|
-| GMX Router | `0xaBBc5F99639c9B6bCb58544ddf04EFA6802F4064` 
-|
-| Uniswap Router | `0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506` 
-|
+## Features  
+- GMX V2 and Uniswap V2 integration  
+- Aave V3 flash loans  
+- Profit auto-extraction  
+- Custom slippage control  
+- Owner-restricted access  
 
-## Usage
-### 1. Deploy Contract
+## Deployment  
 ```javascript
-// Arbitrum mainnet addresses
-const aavePool = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
-const gmxRouter = "0xaBBc5F99639c9B6bCb58544ddf04EFA6802F4064";
-const uniswapRouter = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
-
-// Deploy
-const GMXArbitrageur = await 
-ethers.getContractFactory("GMXArbitrageur");
-const contract = await GMXArbitrageur.deploy(aavePool, gmxRouter, uniswapRouter);
+const GMXArbitrageur = await ethers.getContractFactory("GMXArbitrageur");
+const contract = await GMXArbitrageur.deploy(
+  "0x794a61358D6845594F94dc1DB02A252b5b4814aD",  // Aave
+  "0x...",  // GMX V2 Router
+  "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"   // Uniswap
+);
 ```
 
-### 2. Execute Arbitrage
+## Execution  
 ```javascript
-// Example: 1000 USDC arbitrage
 await contract.startArbitrage(
-    "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", 
-    // USDC  1000000000, 
-    // 1000 USDC (6 decimals) 
-    "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", 
-    // WETH  497500000000000000, 
-    // 0.4975 WETH min out (GMX)  1005000000 
-    // 1005 USDC min out (Uniswap));
+  borrowToken,        // e.g. USDC
+  borrowAmount,       // e.g. 1000e6
+  targetToken,        // e.g. WETH
+  gmxMarket,          // GMX market address
+  gmxMinOut,          // Min GMX output
+  uniswapMinOut,      // Min Uniswap output
+  executionFee        // ETH for GMX execution
+);
 ```
 
-### 3. Configuration
+## Configuration  
 ```javascript
-// Set slippage tolerance (50 = 0.5%)
+// Set slippage (50 = 0.5%)
 await contract.setSlippageTolerance(50);
-// Withdraw tokens from contract
+
+// Withdraw tokens
 await contract.rescueTokens(tokenAddress);
 ```
 
-## Workflow
-1. Manually detect price discrepancy between 
-GMX and Uniswap
-2. Calculate expected profit after fees (flash loan 
-premium: 0.09%)
-3. Call `startArbitrage()` with appropriate 
-parameters
-4. Contract automatically:
-- Takes flash loan  
-- Executes swaps   
-- Repays loan   
-- Sends profit to owner
+## Workflow  
+1. Detect price discrepancy off-chain  
+2. Calculate minOut values with slippage buffer  
+3. Execute `startArbitrage()` with ETH for fees  
+4. Contract:  
+   - Takes flash loan  
+   - Swaps on GMX V2  
+   - Swaps on Uniswap  
+   - Repays loan  
+   - Sends profit to owner  
 
-## Security Considerations
--Only contract owner can execute arbitrage
-- Always verify minOut parameters
-- Start with small amounts for testing
-- Monitor gas fees on Arbitrum network
+> **Warning**  
+> Requires ETH for GMX execution fees. Test with small amounts first.  
 
-## Limitations
-- Requires manual opportunity detection
-- Profitability depends on market volatility
-- Subject to liquidity risks
-
-## License
-MIT License - Use at your own risk. Smart 
-contracts involve substantial risk - thorough 
-auditing is recommended before mainnet use.
+```mermaid
+sequenceDiagram
+    Owner->>Contract: startArbitrage()
+    Contract->>Aave: FlashLoan Request
+    Aave-->>Contract: Funds
+    Contract->>GMX: Swap with ETH fee
+    GMX-->>Contract: Output tokens
+    Contract->>Uniswap: Reverse swap
+    Uniswap-->>Contract: Original tokens
+    Contract->>Aave: Repay loan + fee
+    Contract->>Owner: Send profit
+```
