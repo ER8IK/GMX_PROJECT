@@ -6,210 +6,54 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-// Updated GMX V2 interfaces based on actual implementation
-interface IGMXV2ExchangeRouter {
-    struct CreateOrderParams {
-        CreateOrderParamsAddresses addresses;
-        CreateOrderParamsNumbers numbers;
-        OrderType orderType;
-        DecreasePositionSwapType decreasePositionSwapType;
-        bool isLong;
-        bool shouldUnwrapNativeToken;
-        bytes32 referralCode;
-    }
-
-    struct CreateOrderParamsAddresses {
+// Interface for GMX V2
+interface IGMXV2Router {
+    struct SwapParams {
         address receiver;
         address callbackContract;
         address uiFeeReceiver;
         address market;
         address initialCollateralToken;
-        address[] swapPath;
-    }
-
-    struct CreateOrderParamsNumbers {
-        uint256 sizeDeltaUsd;
         uint256 initialCollateralDeltaAmount;
-        uint256 triggerPrice;
+        address[] swapPath;
+        uint256 minOutputAmount;
+        uint256 sizeDeltaUsd;
         uint256 acceptablePrice;
         uint256 executionFee;
         uint256 callbackGasLimit;
-        uint256 minOutputAmount;
+        uint256 referralCode;
+        bytes32[] priceImpactDiffUsd;
     }
 
-    enum OrderType {
-        MarketSwap,
-        LimitSwap,
-        MarketIncrease,
-        LimitIncrease,
-        MarketDecrease,
-        LimitDecrease,
-        StopLossDecrease,
-        Liquidation
-    }
-
-    enum DecreasePositionSwapType {
-        NoSwap,
-        SwapPnlTokenToCollateralToken,
-        SwapCollateralTokenToPnlToken
-    }
-
-    function createOrder(CreateOrderParams calldata params) external payable returns (bytes32);
-    function cancelOrder(bytes32 key) external;
+    function swap(SwapParams memory params) external payable returns (bytes32);
+    
+    function cancelOrder(bytes32 orderKey) external;
 }
 
-interface IGMXV2OrderCallbackReceiver {
-    function afterOrderExecution(bytes32 key, Order calldata order, EventLogData calldata eventData) external;
-    function afterOrderCancellation(bytes32 key, Order calldata order, EventLogData calldata eventData) external;
-    function afterOrderFrozen(bytes32 key, Order calldata order, EventLogData calldata eventData) external;
+interface IGMXV2Callback {
+    function afterSwapExecution(
+        bytes32 orderKey,
+        address marketAddress,
+        address initialCollateralToken,
+        address[] memory swapPath,
+        uint256 initialCollateralDeltaAmount,
+        uint256 minOutputAmount,
+        uint256 outputAmount,
+        uint256 executionFee
+    ) external;
+
+    function afterSwapCancellation(
+        bytes32 orderKey,
+        address marketAddress,
+        address initialCollateralToken,
+        address[] memory swapPath,
+        uint256 initialCollateralDeltaAmount,
+        uint256 minOutputAmount,
+        uint256 executionFee
+    ) external;
 }
 
-struct Order {
-    OrderAddresses addresses;
-    OrderNumbers numbers;
-    OrderFlags flags;
-}
-
-struct OrderAddresses {
-    address account;
-    address receiver;
-    address callbackContract;
-    address uiFeeReceiver;
-    address market;
-    address initialCollateralToken;
-    address[] swapPath;
-}
-
-struct OrderNumbers {
-    uint256 orderType;
-    uint256 decreasePositionSwapType;
-    uint256 sizeDeltaUsd;
-    uint256 initialCollateralDeltaAmount;
-    uint256 triggerPrice;
-    uint256 acceptablePrice;
-    uint256 executionFee;
-    uint256 callbackGasLimit;
-    uint256 minOutputAmount;
-    uint256 updatedAtBlock;
-}
-
-struct OrderFlags {
-    bool isLong;
-    bool shouldUnwrapNativeToken;
-    bool isFrozen;
-}
-
-struct EventLogData {
-    AddressItems addressItems;
-    UintItems uintItems;
-    IntItems intItems;
-    BoolItems boolItems;
-    Bytes32Items bytes32Items;
-    BytesItems bytesItems;
-    StringItems stringItems;
-}
-
-struct AddressItems {
-    AddressKeyValue[] items;
-    AddressArrayKeyValue[] arrayItems;
-}
-
-struct UintItems {
-    UintKeyValue[] items;
-    UintArrayKeyValue[] arrayItems;
-}
-
-struct IntItems {
-    IntKeyValue[] items;
-    IntArrayKeyValue[] arrayItems;
-}
-
-struct BoolItems {
-    BoolKeyValue[] items;
-    BoolArrayKeyValue[] arrayItems;
-}
-
-struct Bytes32Items {
-    Bytes32KeyValue[] items;
-    Bytes32ArrayKeyValue[] arrayItems;
-}
-
-struct BytesItems {
-    BytesKeyValue[] items;
-    BytesArrayKeyValue[] arrayItems;
-}
-
-struct StringItems {
-    StringKeyValue[] items;
-    StringArrayKeyValue[] arrayItems;
-}
-
-struct AddressKeyValue {
-    string key;
-    address value;
-}
-
-struct AddressArrayKeyValue {
-    string key;
-    address[] value;
-}
-
-struct UintKeyValue {
-    string key;
-    uint256 value;
-}
-
-struct UintArrayKeyValue {
-    string key;
-    uint256[] value;
-}
-
-struct IntKeyValue {
-    string key;
-    int256 value;
-}
-
-struct IntArrayKeyValue {
-    string key;
-    int256[] value;
-}
-
-struct BoolKeyValue {
-    string key;
-    bool value;
-}
-
-struct BoolArrayKeyValue {
-    string key;
-    bool[] value;
-}
-
-struct Bytes32KeyValue {
-    string key;
-    bytes32 value;
-}
-
-struct Bytes32ArrayKeyValue {
-    string key;
-    bytes32[] value;
-}
-
-struct BytesKeyValue {
-    string key;
-    bytes value;
-}
-
-struct BytesArrayKeyValue {
-    string key;
-    bytes[] value;
-}
-
-struct StringKeyValue {
-    string key;
-    string value;
-}
-
-// Uniswap V2 interface
+// Interface for Uniswap V2
 interface IUniswapV2Router {
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -224,452 +68,371 @@ interface IUniswapV2Router {
 }
 
 /**
- * @title Improved GMX V2 Arbitrage Bot
- * @notice Enhanced arbitrage contract with profitability checks and better error handling
+ * @title GMX V2 Arbitrage Bot
+ * @notice Contract for arbitrage between GMX V2 and other DEXs
+ * @dev Uses GMX V2's two-step execution model
  */
-contract ImprovedGMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2OrderCallbackReceiver {
+contract GMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2Callback {
     using SafeERC20 for IERC20;
 
     // Events
     event ArbitrageStarted(
         bytes32 indexed orderKey,
         address indexed user,
+        address borrowToken,
+        uint256 borrowAmount,
+        address targetToken,
+        address gmxMarket,
+        uint256 executionFee
+    );
+    event GMXSwapExecuted(
+        bytes32 indexed orderKey,
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
-        uint256 expectedProfit
+        uint256 amountOut
     );
-    event ArbitrageCompleted(
+    event UniswapSwapExecuted(
         bytes32 indexed orderKey,
-        uint256 actualProfit
-    );
-    event ArbitrageFailed(
-        bytes32 indexed orderKey,
-        string reason
-    );
-    event ProfitabilityCheckFailed(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
-        string reason
+        uint256 amountOut
     );
+    event ProfitTaken(bytes32 indexed orderKey, address token, uint256 profit);
+    event OrderCancelled(bytes32 indexed orderKey);
+    event SlippageUpdated(uint256 oldTolerance, uint256 newTolerance);
+    event TokensRescued(address indexed token, uint256 amount);
+    event ArbitrageFailed(bytes32 indexed orderKey, string reason);
 
-    struct ArbitrageData {
+    // Structure to store arbitrage data
+    struct ArbitrageOrder {
         address user;
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint256 minProfitBps; // Minimum profit in basis points
+        address borrowToken;
+        address targetToken;
+        uint256 borrowAmount;
+        uint256 minUniswapOut;
+        bool executed;
         bool isActive;
-        bool isExecuted;
     }
 
     // Constants
-    uint256 public constant MAX_SLIPPAGE_BPS = 1000; // 10%
-    uint256 public constant MIN_PROFIT_BPS = 10; // 0.1% minimum profit
-    uint256 public constant DEADLINE_EXTENSION = 300; // 5 minutes
+    uint256 public constant SLIPPAGE_DENOMINATOR = 10000;
+    uint256 public constant MAX_SLIPPAGE = 1000; // 10%
 
-    // Contract addresses
-    IGMXV2ExchangeRouter public immutable gmxRouter;
-    IUniswapV2Router public immutable uniswapRouter;
-    
     // Settings
-    uint256 public slippageToleranceBps = 50; // 0.5%
-    mapping(address => bool) public authorizedKeepers;
-    mapping(bytes32 => ArbitrageData) public arbitrageOrders;
+    IGMXV2Router public immutable gmxV2Router;
+    address public immutable uniswapRouter;
+    uint256 public slippageTolerance = 50; // 0.5% in basis points
 
-    modifier onlyAuthorizedKeeper() {
-        require(
-            msg.sender == address(gmxRouter) || authorizedKeepers[msg.sender],
-            "Unauthorized keeper"
-        );
-        _;
-    }
+    // State
+    mapping(bytes32 => ArbitrageOrder) public orders;
 
-    constructor(
-        address _gmxRouter,
-        address _uniswapRouter,
-        address[] memory _authorizedKeepers
-    ) {
-        require(_gmxRouter != address(0), "Invalid GMX router");
+    constructor(address _gmxV2Router, address _uniswapRouter) {
+        require(_gmxV2Router != address(0), "Invalid GMX router");
         require(_uniswapRouter != address(0), "Invalid Uniswap router");
         
-        gmxRouter = IGMXV2ExchangeRouter(_gmxRouter);
-        uniswapRouter = IUniswapV2Router(_uniswapRouter);
-        
-        // Set authorized keepers
-        for (uint256 i = 0; i < _authorizedKeepers.length; i++) {
-            authorizedKeepers[_authorizedKeepers[i]] = true;
-        }
+        gmxV2Router = IGMXV2Router(_gmxV2Router);
+        uniswapRouter = _uniswapRouter;
     }
 
     /**
-     * @notice Check if arbitrage is profitable before execution
-     */
-    function checkProfitability(
-        address tokenIn,
-        address tokenOut,
-        address market,
-        uint256 amountIn,
-        uint256 minProfitBps
-    ) public view returns (bool isProfitable, uint256 estimatedProfitBps, string memory reason) {
-        try this.getGMXAmountOut(market, tokenIn, tokenOut, amountIn) returns (uint256 gmxOut) {
-            try this.getUniswapAmountOut(tokenOut, tokenIn, gmxOut) returns (uint256 uniswapOut) {
-                if (uniswapOut <= amountIn) {
-                    return (false, 0, "No profit possible");
-                }
-                
-                uint256 profit = uniswapOut - amountIn;
-                uint256 profitBps = (profit * 10000) / amountIn;
-                
-                if (profitBps < minProfitBps) {
-                    return (false, profitBps, "Profit below minimum");
-                }
-                
-                return (true, profitBps, "Profitable");
-            } catch {
-                return (false, 0, "Uniswap quote failed");
-            }
-        } catch {
-            return (false, 0, "GMX quote failed");
-        }
-    }
-
-    /**
-     * @notice Create arbitrage order with profitability check
+     * @notice Initiates an arbitrage order
+     * @dev Requires pre-approval of tokens
      */
     function createArbitrageOrder(
-        address tokenIn,
-        address tokenOut,
-        address market,
-        uint256 amountIn,
-        uint256 minProfitBps,
+        address borrowToken,
+        uint256 borrowAmount,
+        address targetToken,
+        address gmxMarket,
+        uint256 gmxMinOut,
+        uint256 uniswapMinOut,
         uint256 executionFee,
         uint256 callbackGasLimit
     ) external payable nonReentrant {
-        require(tokenIn != address(0) && tokenOut != address(0), "Invalid tokens");
-        require(amountIn > 0, "Invalid amount");
-        require(minProfitBps >= MIN_PROFIT_BPS, "Profit threshold too low");
-        require(msg.value >= executionFee, "Insufficient execution fee");
-        require(callbackGasLimit >= 200000, "Callback gas too low");
-
-        // Check profitability
-        (bool profitable, uint256 expectedProfitBps, string memory reason) = 
-            checkProfitability(tokenIn, tokenOut, market, amountIn, minProfitBps);
-            
-        if (!profitable) {
-            emit ProfitabilityCheckFailed(tokenIn, tokenOut, amountIn, reason);
-            revert("Arbitrage not profitable");
-        }
-
-        // Transfer tokens
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        require(borrowToken != address(0), "Invalid borrow token");
+        require(targetToken != address(0), "Invalid target token");
+        require(borrowAmount > 0), "Invalid borrow amount");
+        require(msg.value >= executionFee, "Insufficient ETH for execution");
+        require(callbackGasLimit > 0, "Invalid callback gas limit");
+        
+        // Transfer tokens from user
+        IERC20(borrowToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            borrowAmount
+        );
 
         // Create GMX order
-        bytes32 orderKey = _createGMXOrder(
-            tokenIn,
-            tokenOut,
-            market,
-            amountIn,
+        bytes32 orderKey = _createGmxOrder(
+            borrowToken,
+            borrowAmount,
+            targetToken,
+            gmxMarket,
+            gmxMinOut,
             executionFee,
             callbackGasLimit
         );
 
-        // Store arbitrage data
-        arbitrageOrders[orderKey] = ArbitrageData({
+        // Store order data
+        orders[orderKey] = ArbitrageOrder({
             user: msg.sender,
-            tokenIn: tokenIn,
-            tokenOut: tokenOut,
-            amountIn: amountIn,
-            minProfitBps: minProfitBps,
-            isActive: true,
-            isExecuted: false
+            borrowToken: borrowToken,
+            targetToken: targetToken,
+            borrowAmount: borrowAmount,
+            minUniswapOut: uniswapMinOut,
+            executed: false,
+            isActive: true
         });
 
         emit ArbitrageStarted(
             orderKey,
             msg.sender,
-            tokenIn,
-            tokenOut,
-            amountIn,
-            expectedProfitBps
+            borrowToken,
+            borrowAmount,
+            targetToken,
+            gmxMarket,
+            executionFee
         );
     }
 
     /**
-     * @notice Create GMX order with proper parameters
+     * @notice Creates GMX V2 swap order
+     * @return orderKey Created order key
      */
-    function _createGMXOrder(
-        address tokenIn,
-        address tokenOut,
-        address market,
-        uint256 amountIn,
+    function _createGmxOrder(
+        address borrowToken,
+        uint256 borrowAmount,
+        address targetToken,
+        address gmxMarket,
+        uint256 gmxMinOut,
         uint256 executionFee,
         uint256 callbackGasLimit
     ) internal returns (bytes32) {
-        // Approve tokens
-        IERC20(tokenIn).safeApprove(address(gmxRouter), amountIn);
+        // Reset previous approval if exists
+        IERC20(borrowToken).safeApprove(address(gmxV2Router), 0);
+        IERC20(borrowToken).safeApprove(address(gmxV2Router), borrowAmount);
 
-        address[] memory swapPath = new address[](2);
-        swapPath[0] = tokenIn;
-        swapPath[1] = tokenOut;
+        address[] memory path = new address[](2);
+        path[0] = borrowToken;
+        path[1] = targetToken;
 
-        uint256 minOut = _calculateMinOut(tokenIn, tokenOut, amountIn);
-
-        IGMXV2ExchangeRouter.CreateOrderParams memory params = IGMXV2ExchangeRouter.CreateOrderParams({
-            addresses: IGMXV2ExchangeRouter.CreateOrderParamsAddresses({
-                receiver: address(this),
-                callbackContract: address(this),
-                uiFeeReceiver: address(0),
-                market: market,
-                initialCollateralToken: tokenIn,
-                swapPath: swapPath
-            }),
-            numbers: IGMXV2ExchangeRouter.CreateOrderParamsNumbers({
-                sizeDeltaUsd: 0,
-                initialCollateralDeltaAmount: amountIn,
-                triggerPrice: 0,
-                acceptablePrice: 0,
-                executionFee: executionFee,
-                callbackGasLimit: callbackGasLimit,
-                minOutputAmount: minOut
-            }),
-            orderType: IGMXV2ExchangeRouter.OrderType.MarketSwap,
-            decreasePositionSwapType: IGMXV2ExchangeRouter.DecreasePositionSwapType.NoSwap,
-            isLong: false,
-            shouldUnwrapNativeToken: false,
-            referralCode: bytes32(0)
+        IGMXV2Router.SwapParams memory params = IGMXV2Router.SwapParams({
+            receiver: address(this),
+            callbackContract: address(this),
+            uiFeeReceiver: address(0),
+            market: gmxMarket,
+            initialCollateralToken: borrowToken,
+            initialCollateralDeltaAmount: borrowAmount,
+            swapPath: path,
+            minOutputAmount: gmxMinOut,
+            sizeDeltaUsd: 0,
+            acceptablePrice: 0,
+            executionFee: executionFee,
+            callbackGasLimit: callbackGasLimit,
+            referralCode: 0,
+            priceImpactDiffUsd: new bytes32[](0)
         });
 
-        return gmxRouter.createOrder{value: executionFee}(params);
+        return gmxV2Router.swap{value: executionFee}(params);
     }
 
     /**
-     * @notice Calculate minimum output with slippage protection
+     * @notice Callback executed after GMX order completion
+     * @dev Called by GMX keeper
      */
-    function _calculateMinOut(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) internal view returns (uint256) {
-        try this.getUniswapAmountOut(tokenIn, tokenOut, amountIn) returns (uint256 expectedOut) {
-            return expectedOut * (10000 - slippageToleranceBps) / 10000;
-        } catch {
-            return 0; // Let GMX handle the minimum
-        }
-    }
-
-    /**
-     * @notice GMX order execution callback
-     */
-    function afterOrderExecution(
-        bytes32 key,
-        Order calldata order,
-        EventLogData calldata eventData
-    ) external override onlyAuthorizedKeeper {
-        ArbitrageData storage arbitrage = arbitrageOrders[key];
-        require(arbitrage.isActive, "Order not active");
-        require(!arbitrage.isExecuted, "Already executed");
-
-        arbitrage.isExecuted = true;
-
-        // Extract output amount from event data
-        uint256 outputAmount = _extractOutputAmount(eventData);
-        if (outputAmount == 0) {
-            emit ArbitrageFailed(key, "Cannot extract output amount");
-            return;
-        }
-
-        // Execute second leg on Uniswap
-        try this.executeUniswapSwap(key, arbitrage, outputAmount) {
-            // Success handled in executeUniswapSwap
-        } catch Error(string memory reason) {
-            emit ArbitrageFailed(key, reason);
-            // Return tokens to user
-            IERC20(arbitrage.tokenOut).safeTransfer(arbitrage.user, outputAmount);
-        } catch {
-            emit ArbitrageFailed(key, "Unknown error in Uniswap swap");
-            IERC20(arbitrage.tokenOut).safeTransfer(arbitrage.user, outputAmount);
-        }
-    }
-
-    /**
-     * @notice Execute Uniswap swap (external for try-catch)
-     */
-    function executeUniswapSwap(
+    function afterSwapExecution(
         bytes32 orderKey,
-        ArbitrageData memory arbitrage,
-        uint256 amountIn
-    ) external {
-        require(msg.sender == address(this), "Internal only");
-
-        // Calculate minimum output
-        uint256 minOut = _calculateUniswapMinOut(
-            arbitrage.tokenOut,
-            arbitrage.tokenIn,
-            amountIn
-        );
-
-        // Execute swap
-        uint256 finalAmount = _executeUniswapSwap(
-            arbitrage.tokenOut,
-            arbitrage.tokenIn,
-            amountIn,
-            minOut
-        );
-
-        // Distribute profits
-        _handleProfitDistribution(orderKey, arbitrage, finalAmount);
-    }
-
-    /**
-     * @notice Calculate minimum Uniswap output
-     */
-    function _calculateUniswapMinOut(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) internal view returns (uint256) {
-        try this.getUniswapAmountOut(tokenIn, tokenOut, amountIn) returns (uint256 expectedOut) {
-            return expectedOut * (10000 - slippageToleranceBps) / 10000;
+        address /* marketAddress */,
+        address /* initialCollateralToken */,
+        address[] memory /* swapPath */,
+        uint256 /* initialCollateralDeltaAmount */,
+        uint256 /* minOutputAmount */,
+        uint256 outputAmount,
+        uint256 /* executionFee */
+    ) external override {
+        // Important: Verify caller is authorized
+        require(msg.sender == address(gmxV2Router) || _isAuthorizedKeeper(msg.sender), "Unauthorized");
+        
+        ArbitrageOrder storage order = orders[orderKey];
+        require(order.isActive, "Order not active");
+        require(!order.executed, "Order already executed");
+        
+        // Attempt arbitrage execution
+        try this.executeArbitrage(orderKey, order, outputAmount) {
+            order.executed = true;
+        } catch Error(string memory reason) {
+            emit ArbitrageFailed(orderKey, reason);
+            // Return received tokens to user
+            IERC20(order.targetToken).safeTransfer(order.user, outputAmount);
+            order.executed = true;
         } catch {
-            return arbitrageOrders[msg.sig].amountIn; // At least break even
+            emit ArbitrageFailed(orderKey, "Unknown error");
+            // Return received tokens to user
+            IERC20(order.targetToken).safeTransfer(order.user, outputAmount);
+            order.executed = true;
         }
     }
 
     /**
-     * @notice Execute Uniswap swap
+     * @notice External arbitrage execution function (for try-catch)
      */
-    function _executeUniswapSwap(
+    function executeArbitrage(
+        bytes32 orderKey,
+        ArbitrageOrder memory order,
+        uint256 gmxOutputAmount
+    ) external {
+        require(msg.sender == address(this), "Internal function only");
+        _executeArbitrage(orderKey, order, gmxOutputAmount);
+    }
+
+    /**
+     * @notice Executes second leg of arbitrage on Uniswap
+     */
+    function _executeArbitrage(
+        bytes32 orderKey,
+        ArbitrageOrder memory order,
+        uint256 gmxOutputAmount
+    ) internal {
+        // Received target token from GMX
+        emit GMXSwapExecuted(
+            orderKey,
+            order.borrowToken,
+            order.targetToken,
+            order.borrowAmount,
+            gmxOutputAmount
+        );
+
+        // Convert back to original token on Uniswap
+        uint256 uniswapOutput = _swapOnUniswap(
+            order.targetToken,
+            order.borrowToken,
+            gmxOutputAmount,
+            order.minUniswapOut
+        );
+
+        emit UniswapSwapExecuted(
+            orderKey,
+            order.targetToken,
+            order.borrowToken,
+            gmxOutputAmount,
+            uniswapOutput
+        );
+
+        // Calculate and distribute profits
+        _distributeProfit(orderKey, order, uniswapOutput);
+    }
+
+    /**
+     * @notice Execute swap on Uniswap
+     */
+    function _swapOnUniswap(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
         uint256 minOut
     ) internal returns (uint256) {
-        IERC20(tokenIn).safeApprove(address(uniswapRouter), amountIn);
-
+        // Reset previous approval
+        IERC20(tokenIn).safeApprove(uniswapRouter, 0);
+        IERC20(tokenIn).safeApprove(uniswapRouter, amountIn);
+        
         address[] memory path = new address[](2);
         path[0] = tokenIn;
         path[1] = tokenOut;
 
-        uint256[] memory amounts = uniswapRouter.swapExactTokensForTokens(
+        uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
+        
+        IUniswapV2Router(uniswapRouter).swapExactTokensForTokens(
             amountIn,
             minOut,
             path,
             address(this),
-            block.timestamp + DEADLINE_EXTENSION
+            block.timestamp + 300
         );
-
-        return amounts[1];
+        
+        uint256 balanceAfter = IERC20(tokenOut).balanceOf(address(this));
+        require(balanceAfter > balanceBefore, "Swap failed");
+        
+        return balanceAfter - balanceBefore;
     }
 
     /**
-     * @notice Handle profit distribution
+     * @notice Profit distribution logic
      */
-    function _handleProfitDistribution(
+    function _distributeProfit(
         bytes32 orderKey,
-        ArbitrageData memory arbitrage,
+        ArbitrageOrder memory order,
         uint256 finalAmount
     ) internal {
-        if (finalAmount <= arbitrage.amountIn) {
-            // No profit or loss - return available amount
-            IERC20(arbitrage.tokenIn).safeTransfer(arbitrage.user, finalAmount);
-            emit ArbitrageFailed(orderKey, "No profit generated");
+        if (finalAmount <= order.borrowAmount) {
+            // No profit - return available funds to user
+            IERC20(order.borrowToken).safeTransfer(order.user, finalAmount);
             return;
         }
+        
+        uint256 profit = finalAmount - order.borrowAmount;
+        
+        // Return initial capital to user
+        IERC20(order.borrowToken).safeTransfer(order.user, order.borrowAmount);
+        
+        // Send profit to contract owner
+        IERC20(order.borrowToken).safeTransfer(owner(), profit);
+        
+        emit ProfitTaken(orderKey, order.borrowToken, profit);
+    }
 
-        uint256 profit = finalAmount - arbitrage.amountIn;
-        uint256 profitBps = (profit * 10000) / arbitrage.amountIn;
-
-        if (profitBps < arbitrage.minProfitBps) {
-            // Profit below threshold - return all to user
-            IERC20(arbitrage.tokenIn).safeTransfer(arbitrage.user, finalAmount);
-            emit ArbitrageFailed(orderKey, "Profit below minimum threshold");
-            return;
-        }
-
-        // Distribute profit: 80% to user, 20% to protocol
-        uint256 userProfit = profit * 80 / 100;
-        uint256 protocolProfit = profit - userProfit;
-
-        // Transfer original amount + user profit share
-        IERC20(arbitrage.tokenIn).safeTransfer(
-            arbitrage.user,
-            arbitrage.amountIn + userProfit
+    /**
+     * @notice Callback for cancelled GMX orders
+     */
+    function afterSwapCancellation(
+        bytes32 orderKey,
+        address /* marketAddress */,
+        address initialCollateralToken,
+        address[] memory /* swapPath */,
+        uint256 initialCollateralDeltaAmount,
+        uint256 /* minOutputAmount */,
+        uint256 /* executionFee */
+    ) external override {
+        require(msg.sender == address(gmxV2Router) || _isAuthorizedKeeper(msg.sender), "Unauthorized");
+        
+        ArbitrageOrder storage order = orders[orderKey];
+        require(order.isActive, "Order not active");
+        
+        // Return funds to user
+        IERC20(initialCollateralToken).safeTransfer(
+            order.user, 
+            initialCollateralDeltaAmount
         );
-
-        // Transfer protocol profit
-        IERC20(arbitrage.tokenIn).safeTransfer(owner(), protocolProfit);
-
-        emit ArbitrageCompleted(orderKey, profitBps);
+        
+        order.isActive = false;
+        emit OrderCancelled(orderKey);
     }
 
     /**
-     * @notice Extract output amount from GMX event data
+     * @notice Manual order cancellation
+     * @dev Can be called when order takes too long
      */
-    function _extractOutputAmount(EventLogData calldata eventData) 
-        internal 
-        pure 
-        returns (uint256) 
-    {
-        // Look for output amount in event data
-        for (uint256 i = 0; i < eventData.uintItems.items.length; i++) {
-            if (keccak256(bytes(eventData.uintItems.items[i].key)) == keccak256("outputAmount")) {
-                return eventData.uintItems.items[i].value;
-            }
-        }
-        return 0;
+    function cancelOrder(bytes32 orderKey) external {
+        ArbitrageOrder storage order = orders[orderKey];
+        require(order.user == msg.sender || msg.sender == owner(), "Not authorized");
+        require(order.isActive, "Order not active");
+        require(!order.executed, "Order already executed");
+        
+        gmxV2Router.cancelOrder(orderKey);
+        order.isActive = false;
     }
 
     /**
-     * @notice GMX order cancellation callback
+     * @notice Authorized keeper check (stub)
      */
-    function afterOrderCancellation(
-        bytes32 key,
-        Order calldata order,
-        EventLogData calldata /* eventData */
-    ) external override onlyAuthorizedKeeper {
-        ArbitrageData storage arbitrage = arbitrageOrders[key];
-        require(arbitrage.isActive, "Order not active");
-
-        arbitrage.isActive = false;
-
-        // Return tokens to user
-        IERC20(arbitrage.tokenIn).safeTransfer(
-            arbitrage.user,
-            arbitrage.amountIn
-        );
-
-        emit ArbitrageFailed(key, "Order cancelled");
+    function _isAuthorizedKeeper(address keeper) internal pure returns (bool) {
+        // Should contain GMX keeper authorization logic
+        // In production, obtain keeper list from GMX
+        return false;
     }
 
     /**
-     * @notice GMX order frozen callback
-     */
-    function afterOrderFrozen(
-        bytes32 key,
-        Order calldata /* order */,
-        EventLogData calldata /* eventData */
-    ) external override onlyAuthorizedKeeper {
-        emit ArbitrageFailed(key, "Order frozen");
-    }
-
-    /**
-     * @notice Get GMX quote (implement based on GMX SDK)
-     */
-    function getGMXAmountOut(
-        address market,
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) external view returns (uint256) {
-        // This should integrate with GMX's pricing contracts
-        // For now, return a placeholder - implement based on GMX documentation
-        revert("GMX quote not implemented");
-    }
-
-    /**
-     * @notice Get Uniswap quote
+     * @notice Get expected output from Uniswap
      */
     function getUniswapAmountOut(
         address tokenIn,
@@ -680,43 +443,41 @@ contract ImprovedGMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2OrderCallback
         path[0] = tokenIn;
         path[1] = tokenOut;
         
-        uint256[] memory amounts = uniswapRouter.getAmountsOut(amountIn, path);
+        uint256[] memory amounts = IUniswapV2Router(uniswapRouter).getAmountsOut(amountIn, path);
         return amounts[1];
     }
 
     /**
-     * @notice Manual order cancellation
+     * @notice Update slippage tolerance
      */
-    function cancelOrder(bytes32 orderKey) external {
-        ArbitrageData storage arbitrage = arbitrageOrders[orderKey];
-        require(
-            arbitrage.user == msg.sender || msg.sender == owner(),
-            "Not authorized"
-        );
-        require(arbitrage.isActive, "Order not active");
-        require(!arbitrage.isExecuted, "Order already executed");
-
-        gmxRouter.cancelOrder(orderKey);
+    function setSlippageTolerance(uint256 _tolerance) external onlyOwner {
+        require(_tolerance <= MAX_SLIPPAGE, "Slippage too high");
+        
+        uint256 oldTolerance = slippageTolerance;
+        slippageTolerance = _tolerance;
+        emit SlippageUpdated(oldTolerance, _tolerance);
     }
 
     /**
-     * @notice Admin functions
+     * @notice Rescue tokens from contract
      */
-    function setSlippageTolerance(uint256 _slippageBps) external onlyOwner {
-        require(_slippageBps <= MAX_SLIPPAGE_BPS, "Slippage too high");
-        slippageToleranceBps = _slippageBps;
-    }
-
-    function setAuthorizedKeeper(address keeper, bool authorized) external onlyOwner {
-        authorizedKeepers[keeper] = authorized;
-    }
-
-    function rescueTokens(address token, uint256 amount) external onlyOwner {
+    function rescueTokens(address token) external onlyOwner {
+        uint256 amount;
         if (token == address(0)) {
+            amount = address(this).balance;
             payable(owner()).transfer(amount);
         } else {
+            amount = IERC20(token).balanceOf(address(this));
             IERC20(token).safeTransfer(owner(), amount);
         }
+        emit TokensRescued(token, amount);
+    }
+
+    /**
+     * @notice Get order information
+     */
+    function getOrderInfo(bytes32 orderKey) external view returns (ArbitrageOrder memory) {
+        return orders[orderKey];
     }
 
     receive() external payable {}
