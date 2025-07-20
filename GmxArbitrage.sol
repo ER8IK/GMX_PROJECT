@@ -128,7 +128,7 @@ contract GMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2Callback {
     // State
     mapping(bytes32 => ArbitrageOrder) public orders;
 
-    constructor(address _gmxV2Router, address _uniswapRouter) {
+    constructor(address _gmxV2Router, address _uniswapRouter) Ownable(msg.sender) {
         require(_gmxV2Router != address(0), "Invalid GMX router");
         require(_uniswapRouter != address(0), "Invalid Uniswap router");
         
@@ -152,7 +152,7 @@ contract GMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2Callback {
     ) external payable nonReentrant {
         require(borrowToken != address(0), "Invalid borrow token");
         require(targetToken != address(0), "Invalid target token");
-        require(borrowAmount > 0), "Invalid borrow amount");
+        require(borrowAmount > 0, "Invalid borrow amount");
         require(msg.value >= executionFee, "Insufficient ETH for execution");
         require(callbackGasLimit > 0, "Invalid callback gas limit");
         
