@@ -1,72 +1,68 @@
-# GMX V2 Arbitrage Smart Contract  
-**Author:** Erik Lochashvili  
-**Network:** Arbitrum One  
+# GMX Arbitrage Bot
 
-## Overview  
-Flash loan-powered arbitrage between GMX V2 and Uniswap. Capital-efficient MEV execution using Aave V3 loans.  
+A smart contract for performing arbitrage between GMX V2 and other DEXs (like Uniswap).
 
-## Features  
-- GMX V2 and Uniswap V2 integration  
-- Aave V3 flash loans  
-- Profit auto-extraction  
-- Custom slippage control  
-- Owner-restricted access  
+## Key Features
 
-## Deployment  
-```javascript
-const GMXArbitrageur = await ethers.getContractFactory("GMXArbitrageur");
-const contract = await GMXArbitrageur.deploy(
-  "0x794a61358D6845594F94dc1DB02A252b5b4814aD",  // Aave
-  "0x...",  // GMX V2 Router
-  "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"   // Uniswap
+- Two-step arbitrage execution (GMX → DEX)
+- Profit calculation and distribution
+- Order cancellation handling
+- Owner-only emergency functions
+
+## Setup
+
+1. Install dependencies:
+```bash
+forge install OpenZeppelin/openzeppelin-contracts
+```
+
+2. Configure environment:
+```bash
+.env
+# Fill in your values in .env
+```
+
+## Deployment
+
+```solidity
+// Deploy with:
+GMXArbitrageur arbitrageur = new GMXArbitrageur(
+    gmxV2RouterAddress,
+    uniswapRouterAddress
 );
 ```
 
-## Execution  
-```javascript
-await contract.startArbitrage(
-  borrowToken,        // e.g. USDC
-  borrowAmount,       // e.g. 1000e6
-  targetToken,        // e.g. WETH
-  gmxMarket,          // GMX market address
-  gmxMinOut,          // Min GMX output
-  uniswapMinOut,      // Min Uniswap output
-  executionFee        // ETH for GMX execution
+## Usage
+
+### Create Arbitrage Order
+```solidity
+arbitrageur.createArbitrageOrder{value: executionFee}(
+    borrowToken,
+    borrowAmount,
+    targetToken,
+    gmxMarket,
+    gmxMinOut,
+    uniswapMinOut,
+    executionFee,
+    callbackGasLimit
 );
 ```
 
-## Configuration  
-```javascript
-// Set slippage (50 = 0.5%)
-await contract.setSlippageTolerance(50);
-
-// Withdraw tokens
-await contract.rescueTokens(tokenAddress);
+### Cancel Order
+```solidity
+arbitrageur.cancelOrder(orderKey);
 ```
 
-## Workflow  
-1. Detect price discrepancy off-chain  
-2. Calculate minOut values with slippage buffer  
-3. Execute `startArbitrage()` with ETH for fees  
-4. Contract:  
-   - Takes flash loan  
-   - Swaps on GMX V2  
-   - Swaps on Uniswap  
-   - Repays loan  
-   - Sends profit to owner  
+### Owner Functions
+```solidity
+// Set slippage tolerance (in basis points)
+arbitrageur.setSlippageTolerance(50); // 0.5%
 
-> **Warning**  
-> Requires ETH for GMX execution fees. Test with small amounts first.  
+// Rescue tokens
+arbitrageur.rescueTokens(tokenAddress);
+```
 
-```mermaid
-sequenceDiagram
-    Owner->>Contract: startArbitrage()
-    Contract->>Aave: FlashLoan Request
-    Aave-->>Contract: Funds
-    Contract->>GMX: Swap with ETH fee
-    GMX-->>Contract: Output tokens
-    Contract->>Uniswap: Reverse swap
-    Uniswap-->>Contract: Original tokens
-    Contract->>Aave: Repay loan + fee
-    Contract->>Owner: Send profit
+## Testing
+```bash
+forge test -vv
 ```
