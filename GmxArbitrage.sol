@@ -210,8 +210,8 @@ contract GMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2Callback {
         uint256 callbackGasLimit
     ) internal returns (bytes32) {
         // Reset previous approval if exists
-        IERC20(borrowToken).safeApprove(address(gmxV2Router), 0);
-        IERC20(borrowToken).safeApprove(address(gmxV2Router), borrowAmount);
+        IERC20(borrowToken).approve(address(gmxV2Router), 0);
+        IERC20(borrowToken).approve(address(gmxV2Router), borrowAmount);
 
         address[] memory path = new address[](2);
         path[0] = borrowToken;
@@ -333,8 +333,8 @@ contract GMXArbitrageur is Ownable, ReentrancyGuard, IGMXV2Callback {
         uint256 minOut
     ) internal returns (uint256) {
         // Reset previous approval
-        IERC20(tokenIn).safeApprove(uniswapRouter, 0);
-        IERC20(tokenIn).safeApprove(uniswapRouter, amountIn);
+        IERC20(tokenIn).approve(uniswapRouter, 0);
+        IERC20(tokenIn).approve(uniswapRouter, amountIn);
         
         address[] memory path = new address[](2);
         path[0] = tokenIn;
