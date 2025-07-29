@@ -1,21 +1,25 @@
 {
-  "name": "gmx-arbitrage-scanner",
+  "name": "gmx-scanner",
   "version": "1.0.0",
+  "type": "module",
   "description": "GMX and Uniswap arbitrage scanner",
-  "main": "dist/index.js",
+  "main": "dist/GmxScanner.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:monitor": "MONITOR_MODE=true node dist/index.js"
+    "start": "node dist/GmxScanner.ts"
   },
   "dependencies": {
-    "@uniswap/sdk-core": "^3.2.2",
+    "@ethersproject/providers": "^5.8.0",
+    "@uniswap/sdk-core": "^3.2.3",
     "@uniswap/smart-order-router": "^3.3.0",
-    "ethers": "^6.8.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^17.2.1",
+    "ethers": "^6.15.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/node": "^20.11.0"
-  }
+    "typescript": "^5.8.3",
+    "@types/node": "^24.1.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
