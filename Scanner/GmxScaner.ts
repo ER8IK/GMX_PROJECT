@@ -31,8 +31,8 @@ class ArbitrageScanner {
   private provider: ethers.JsonRpcProvider;
   private alphaRouter: AlphaRouter;
   private minProfitThreshold = 0.5; // Minimum profit threshold in percent
-  private gasEstimate = 500000n; // Estimated gas usage for arbitrage transaction
-  private chainId = 42161; // Chain ID for Arbitrum
+  private gasEstimate = 500000n; // Estimated gas units for arbitrage transaction
+  private chainId = 42161; // Arbitrum chain ID
 
   private gmxReaderAddress = '0xf60becbba223eea9495da3f606753867ec10d139';
   private gmxDataStoreAddress = '0xFD70de6b91282D8017aA4E741e9Ae325CAb992d8';
@@ -233,6 +233,15 @@ class ArbitrageScanner {
   }
 
   /**
+   * Fetch raw token price from GMX oracle by token address
+   */
+  private async getTokenPrice(tokenAddress: string): Promise<number> {
+    const reader = new ethers.Contract(this.gmxReaderAddress, this.gmxReaderABI, this.provider);
+    const prices = await reader.getPrices(this.gmxDataStoreAddress, [tokenAddress]);
+    return Number(ethers.formatUnits(prices[0], 30)); // GMX returns price with 30 decimals
+  }
+
+  /**
    * Calculate profit percentage and estimated profit USD after gas costs
    */
   private async calculateProfit(
@@ -248,4 +257,96 @@ class ArbitrageScanner {
     let profit: number;
 
     if (direction === 'GMX_TO_UNI') {
+      // Buy on GMX, sell on Uniswap
       outputAmount = amountIn * buyPrice;
+      profit = (outputAmount * sellPrice) - (amountIn * buyPrice);
+    } else {
+      // Buy on Uniswap, sell on GMX
+      outputAmount = amountIn * buyPrice;
+      profit = (outputAmount * sellPrice) - amountIn;
+    }
+
+    // Get current gas price in wei
+    const gasPrice = await this.getGasPrice();
+
+    // Calculate gas cost in ETH and then USD
+    const gasCostETH = Number(ethers.formatEther(this.gasEstimate * gasPrice));
+    const gasCostUSD = gasCostETH * ethPrice;
+
+    // Net profit after gas cost
+    const netProfit = profit - gasCostUSD;
+
+    // Profit percentage relative to investment
+    const profitPercent = (netProfit / (amountIn * buyPrice)) * 100;
+
+    return {
+      profitPercent,
+      estimatedProfit: netProfit.toFixed(4),
+      gasCostUSD
+    };
+  }
+
+  /**
+   * Get current gas price from provider
+   */
+  private async getGasPrice(): Promise<bigint> {
+    const feeData = await this.provider.getFeeData();
+    return feeData.gasPrice ?? ethers.parseUnits('0.1', 'gwei');
+  }
+
+  /**
+   * Placeholder for arbitrage execution function
+   * You need to implement your own arbitrage transaction logic here
+   */
+  async executeArbitrage(
+    opportunity: ArbitrageOpportunity,
+    wallet: ethers.Wallet,
+    amountIn: string
+  ): Promise<string> {
+    console.log(`🚀 Executing arbitrage direction: ${opportunity.direction}`);
+
+    const tokenA = this.tokenPairs.find(t => t.address === opportunity.tokenA)!;
+    const tokenB = this.tokenPairs.find(t => t.address === opportunity.tokenB)!;
+
+    // Minimal amounts to receive considering slippage tolerance (0.5%)
+    const gmxMinOut = opportunity.gmxPrice * 0.995;
+    const uniMinOut = opportunity.uniswapPrice * 0.995;
+
+    // Example execution fee placeholder
+    const executionFee = ethers.parseEther('0.01');
+
+    // Example contract ABI and address (replace with your arbitrage contract)
+    const contractABI = [
+      'function createArbitrageOrder(address borrowToken, uint256 borrowAmount, address targetToken, address gmxMarket, uint256 gmxMinOut, uint256 uniswapMinOut, uint256 executionFee, uint256 callbackGasLimit) payable'
+    ];
+
+    const contract = new ethers.Contract(
+      '0xYourContractAddress', // TODO: replace with your deployed contract address
+      contractABI,
+      wallet
+    );
+
+    const amountInWei = ethers.parseUnits(amountIn, tokenA.decimals);
+
+    // TODO: Implement actual call, example:
+    /*
+    const tx = await contract.createArbitrageOrder(
+      opportunity.tokenA,
+      amountInWei,
+      opportunity.tokenB,
+      opportunity.marketAddress,
+      ethers.parseUnits(gmxMinOut.toFixed(tokenB.decimals), tokenB.decimals),
+      ethers.parseUnits(uniMinOut.toFixed(tokenA.decimals), tokenA.decimals),
+      executionFee,
+      500000 // callbackGasLimit
+    );
+
+    return tx.hash;
+    */
+
+    // For now return dummy tx hash
+    return '0x0000000000000000000000000000000000000000000000000000000000000000';
+  }
+}
+
+export { ArbitrageScanner, ArbitrageOpportunity };
