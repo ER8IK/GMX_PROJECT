@@ -1,0 +1,21 @@
+{
+  "name": "gmx-arbitrage-scanner",
+  "version": "1.0.0",
+  "description": "GMX and Uniswap arbitrage scanner",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:monitor": "MONITOR_MODE=true node dist/index.js"
+  },
+  "dependencies": {
+    "@uniswap/sdk-core": "^3.2.2",
+    "@uniswap/smart-order-router": "^3.3.0",
+    "ethers": "^6.8.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0"
+  }
+}
