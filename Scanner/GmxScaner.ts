@@ -31,7 +31,7 @@ interface GMXMarketConfig {
 }
 
 class ArbitrageScanner {
-  private provider: ethers.JsonRpcProvider;
+  private provider!: ethers.JsonRpcProvider;
   private alphaRouter: AlphaRouter | null = null;
   private minProfitThreshold = 0.3;
   private gasEstimate = 800000n;
@@ -365,7 +365,7 @@ class ArbitrageScanner {
           {
             recipient: ethers.ZeroAddress,
             slippageTolerance: new Percent(50, 10000), // 0.5%
-            type: SwapType.UNIVERSAL_ROUTER,
+            type: SwapType.UNIVERSAL_ROUTER as any,
             deadline: Math.floor(Date.now() / 1000) + 1800
           }
         );
